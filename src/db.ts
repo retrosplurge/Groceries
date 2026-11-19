@@ -28,8 +28,8 @@ export interface Backend {
   mode: 'supabase' | 'demo'
   getUser(): Promise<User | null>
   onAuthChange(cb: (u: User | null) => void): () => void
-  sendMagicLink(email: string): Promise<void>
-  verifyCode(email: string, token: string): Promise<void>
+  signIn(email: string, password: string): Promise<void>
+  signUp(email: string, password: string): Promise<void>
   signOut(): Promise<void>
   myHousehold(): Promise<Household | null>
   createHousehold(displayName: string): Promise<void>
@@ -60,15 +60,14 @@ function supabaseBackend(sb: SupabaseClient): Backend {
       const { data } = sb.auth.onAuthStateChange((_e, s) => cb(toUser(s?.user)))
       return () => data.subscription.unsubscribe()
     },
-    async sendMagicLink(email) {
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.origin + window.location.pathname },
-      })
-      check(error)
+    async signIn(email, password) {
+      check((await sb.auth.signInWithPassword({ email, password })).error)
     },
-    async verifyCode(email, token) {
-      check((await sb.auth.verifyOtp({ email, token, type: 'email' })).error)
+    async signUp(email, password) {
+      const { data, error } = await sb.auth.signUp({ email, password })
+      check(error)
+      // With "Confirm email" on, Supabase creates the user but no session.
+      if (!data.session) throw new Error('Email not confirmed')
     },
     async signOut() {
       await sb.auth.signOut()
@@ -167,8 +166,8 @@ function demoBackend(): Backend {
     mode: 'demo',
     async getUser() { return user },
     onAuthChange() { return () => {} },
-    async sendMagicLink() {},
-    async verifyCode() {},
+    async signIn() {},
+    async signUp() {},
     async signOut() {},
     async myHousehold() { return household() },
     async createHousehold() { household() },

@@ -51,62 +51,57 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 function SignIn({ linkError }: { linkError: string | null }) {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  const [code, setCode] = useState('')
+  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const run = async (fn: () => Promise<void>) => {
+  const [error, setError] = useState(linkError ? `That sign-in link didn't work (${linkError}).` : '')
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setError('')
     setBusy(true)
     try {
-      await fn()
+      if (mode === 'signin') await db.signIn(email.trim(), password)
+      else await db.signUp(email.trim(), password)
     } catch (err) {
       setError(friendly((err as Error).message))
     } finally {
       setBusy(false)
     }
   }
+  const signup = mode === 'signup'
   return (
     <div className="center">
-      <div className="card narrow">
+      <form className="card narrow" onSubmit={submit}>
         <h1>🛒 Groceries</h1>
-        {linkError && !sent && <p className="error">That sign-in link didn't work ({linkError}). Use the code instead.</p>}
-        {sent ? (
-          <form onSubmit={(e) => { e.preventDefault(); run(() => db.verifyCode(email.trim(), code.trim())) }}>
-            <p>
-              We emailed a code to <b>{email}</b>. Type it here.
-            </p>
-            <input
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="123456"
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              className="code"
-              autoFocus
-            />
-            <button className="primary" type="submit" disabled={busy || code.length < 6}>Sign in</button>
-            {error && <p className="error">{error}</p>}
-            <button type="button" className="link" onClick={() => { setSent(false); setCode('') }}>Use a different email or send a new code</button>
-          </form>
-        ) : (
-          <form onSubmit={(e) => { e.preventDefault(); run(async () => { await db.sendMagicLink(email.trim()); setSent(true) }) }}>
-            <p className="muted">Sign in with your email. We'll send you a code, no password needed.</p>
-            <input type="email" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <button className="primary" type="submit" disabled={busy}>Email me a code</button>
-            {error && <p className="error">{error}</p>}
-            <button type="button" className="link" disabled={!email} onClick={() => setSent(true)}>I already have a code</button>
-          </form>
-        )}
-      </div>
+        <p className="muted">{signup ? 'Create your account. You only do this once.' : 'Sign in to your shared list.'}</p>
+        <label>Email</label>
+        <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
+        <label>Password</label>
+        <input
+          type="password"
+          required
+          minLength={6}
+          autoComplete={signup ? 'new-password' : 'current-password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <button className="primary" type="submit" disabled={busy}>{signup ? 'Create account' : 'Sign in'}</button>
+        {error && <p className="error">{error}</p>}
+        <button type="button" className="link" onClick={() => { setMode(signup ? 'signin' : 'signup'); setError('') }}>
+          {signup ? 'I already have an account' : 'New here? Create an account'}
+        </button>
+      </form>
     </div>
   )
 }
 
 function friendly(msg: string) {
-  if (/rate limit/i.test(msg)) return 'Too many emails sent in the last hour. Use the code from your latest email, or try again in a little while.'
-  if (/expired|invalid/i.test(msg)) return 'That code is expired or wrong. Make sure it is from your newest email, or send a new one.'
+  if (/invalid login credentials/i.test(msg)) return "That email and password don't match. New here? Create an account below."
+  if (/already registered|already exists/i.test(msg)) return 'That email already has an account. Sign in instead.'
+  if (/email not confirmed|confirm/i.test(msg))
+    return 'Supabase is asking for email confirmation. Turn off "Confirm email" in Supabase (Authentication, Sign In / Providers, Email), then try again.'
+  if (/rate limit/i.test(msg)) return 'Too many attempts. Wait a few minutes and try again.'
   return msg
 }
 
