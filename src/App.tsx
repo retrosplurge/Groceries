@@ -225,10 +225,38 @@ function Settings({ household, onClose }: { household: Household; onClose: () =>
         Share code: <b className="code">{household.join_code}</b>
       </p>
       <p className="muted small">Your partner signs in, picks "join", and enters this code to share this list.</p>
+      {db.mode === 'supabase' && <ChangePassword />}
       <div className="row">
         {db.mode === 'supabase' && <button onClick={() => db.signOut()}>Sign out</button>}
         <button onClick={onClose}>Close</button>
       </div>
     </div>
+  )
+}
+
+function ChangePassword() {
+  const [open, setOpen] = useState(false)
+  const [pw, setPw] = useState('')
+  const [msg, setMsg] = useState('')
+  if (!open) return <button className="link" onClick={() => setOpen(true)}>Change password</button>
+  return (
+    <form
+      className="row"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        try {
+          await db.changePassword(pw)
+          setMsg('Password changed.')
+          setPw('')
+          setOpen(false)
+        } catch (err) {
+          setMsg((err as Error).message)
+        }
+      }}
+    >
+      <input type="password" autoComplete="new-password" minLength={6} required placeholder="New password" value={pw} onChange={(e) => setPw(e.target.value)} />
+      <button className="primary" type="submit">Save</button>
+      {msg && <span className="small">{msg}</span>}
+    </form>
   )
 }

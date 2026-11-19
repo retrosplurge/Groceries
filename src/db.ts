@@ -30,6 +30,7 @@ export interface Backend {
   onAuthChange(cb: (u: User | null) => void): () => void
   signIn(email: string, password: string): Promise<void>
   signUp(email: string, password: string): Promise<void>
+  changePassword(password: string): Promise<void>
   signOut(): Promise<void>
   myHousehold(): Promise<Household | null>
   createHousehold(displayName: string): Promise<void>
@@ -62,6 +63,9 @@ function supabaseBackend(sb: SupabaseClient): Backend {
     },
     async signIn(email, password) {
       check((await sb.auth.signInWithPassword({ email, password })).error)
+    },
+    async changePassword(password) {
+      check((await sb.auth.updateUser({ password })).error)
     },
     async signUp(email, password) {
       const { data, error } = await sb.auth.signUp({ email, password })
@@ -168,6 +172,7 @@ function demoBackend(): Backend {
     onAuthChange() { return () => {} },
     async signIn() {},
     async signUp() {},
+    async changePassword() {},
     async signOut() {},
     async myHousehold() { return household() },
     async createHousehold() { household() },
