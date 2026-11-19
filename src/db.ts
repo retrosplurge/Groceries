@@ -29,6 +29,7 @@ export interface Backend {
   getUser(): Promise<User | null>
   onAuthChange(cb: (u: User | null) => void): () => void
   sendMagicLink(email: string): Promise<void>
+  verifyCode(email: string, token: string): Promise<void>
   signOut(): Promise<void>
   myHousehold(): Promise<Household | null>
   createHousehold(displayName: string): Promise<void>
@@ -65,6 +66,9 @@ function supabaseBackend(sb: SupabaseClient): Backend {
         options: { emailRedirectTo: window.location.origin + window.location.pathname },
       })
       check(error)
+    },
+    async verifyCode(email, token) {
+      check((await sb.auth.verifyOtp({ email, token, type: 'email' })).error)
     },
     async signOut() {
       await sb.auth.signOut()
@@ -164,6 +168,7 @@ function demoBackend(): Backend {
     async getUser() { return user },
     onAuthChange() { return () => {} },
     async sendMagicLink() {},
+    async verifyCode() {},
     async signOut() {},
     async myHousehold() { return household() },
     async createHousehold() { household() },

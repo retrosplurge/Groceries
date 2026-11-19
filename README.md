@@ -2,7 +2,7 @@
 
 A shared grocery list for two phones: list sections, saved recipes, a weekly meal plan, and price history from the stores you shop at (Aldi, Walmart, Target, or any you add).
 
-It's an installable web app (PWA) backed by Supabase for email-link sign-in and live sync.
+It's an installable web app (PWA) backed by Supabase for email-code sign-in and live sync.
 
 ## Features
 
@@ -17,7 +17,8 @@ It's an installable web app (PWA) backed by Supabase for email-link sign-in and 
 ## One-time Supabase setup
 
 1. Supabase dashboard → **SQL Editor** → New query → paste `supabase/schema.sql` → **Run**.
-2. **Authentication → URL Configuration**: set Site URL to the app's address (e.g. `https://retrosplurge.github.io/Groceries/`) and add the same to Redirect URLs. Add `http://localhost:5173/` too if you run it locally.
+2. **Authentication → Emails → Magic Link** template: add the line `Your code: {{ .Token }}` so sign-in emails include the 6-digit code the app asks for.
+3. **Authentication → URL Configuration**: set Site URL to the app's address (e.g. `https://retrosplurge.github.io/Groceries/`) and add the same to Redirect URLs. Add `http://localhost:5173/` too if you run it locally.
 
 ## Run locally
 

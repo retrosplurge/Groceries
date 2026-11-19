@@ -53,40 +53,61 @@ export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 function SignIn({ linkError }: { linkError: string | null }) {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const run = async (fn: () => Promise<void>) => {
+    setError('')
+    setBusy(true)
+    try {
+      await fn()
+    } catch (err) {
+      setError(friendly((err as Error).message))
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <div className="center">
       <div className="card narrow">
         <h1>🛒 Groceries</h1>
-        {linkError && !sent && (
-          <p className="error">That sign-in link didn't work ({linkError}). Send yourself a new one below.</p>
-        )}
+        {linkError && !sent && <p className="error">That sign-in link didn't work ({linkError}). Use the code instead.</p>}
         {sent ? (
-          <p>
-            Check <b>{email}</b> for a sign-in link. Open it on this phone, in the same browser you're using now.
-          </p>
-        ) : (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault()
-              setError('')
-              try {
-                await db.sendMagicLink(email.trim())
-                setSent(true)
-              } catch (err) {
-                setError((err as Error).message)
-              }
-            }}
-          >
-            <p className="muted">Sign in with your email. We'll send you a link, no password needed.</p>
-            <input type="email" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <button className="primary" type="submit">Send sign-in link</button>
+          <form onSubmit={(e) => { e.preventDefault(); run(() => db.verifyCode(email.trim(), code.trim())) }}>
+            <p>
+              We emailed a code to <b>{email}</b>. Type it here.
+            </p>
+            <input
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              className="code"
+              autoFocus
+            />
+            <button className="primary" type="submit" disabled={busy || code.length < 6}>Sign in</button>
             {error && <p className="error">{error}</p>}
+            <button type="button" className="link" onClick={() => { setSent(false); setCode('') }}>Use a different email or send a new code</button>
+          </form>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); run(async () => { await db.sendMagicLink(email.trim()); setSent(true) }) }}>
+            <p className="muted">Sign in with your email. We'll send you a code, no password needed.</p>
+            <input type="email" required placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button className="primary" type="submit" disabled={busy}>Email me a code</button>
+            {error && <p className="error">{error}</p>}
+            <button type="button" className="link" disabled={!email} onClick={() => setSent(true)}>I already have a code</button>
           </form>
         )}
       </div>
     </div>
   )
+}
+
+function friendly(msg: string) {
+  if (/rate limit/i.test(msg)) return 'Too many emails sent in the last hour. Use the code from your latest email, or try again in a little while.'
+  if (/expired|invalid/i.test(msg)) return 'That code is expired or wrong. Make sure it is from your newest email, or send a new one.'
+  return msg
 }
 
 function HouseholdGate({ user }: { user: User }) {
