@@ -26,17 +26,31 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined)
+  const [authError] = useState(() => {
+    // Supabase puts sign-in link problems (expired, already used) in the URL.
+    const params = new URLSearchParams(window.location.hash.slice(1) + '&' + window.location.search.slice(1))
+    return params.get('error_description')
+  })
   useEffect(() => {
-    db.getUser().then(setUser)
+    withTimeout(db.getUser(), 15000)
+      .then(setUser)
+      .catch(() => setUser(null))
     return db.onAuthChange(setUser)
   }, [])
 
-  if (user === undefined) return <div className="center muted">Loading…</div>
-  if (!user) return <SignIn />
+  if (user === undefined) return <div className="center muted">Signing in…</div>
+  if (!user) return <SignIn linkError={authError} />
   return <HouseholdGate user={user} />
 }
 
-function SignIn() {
+export function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('The server took too long to answer.')), ms)),
+  ])
+}
+
+function SignIn({ linkError }: { linkError: string | null }) {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
@@ -44,8 +58,13 @@ function SignIn() {
     <div className="center">
       <div className="card narrow">
         <h1>🛒 Groceries</h1>
+        {linkError && !sent && (
+          <p className="error">That sign-in link didn't work ({linkError}). Send yourself a new one below.</p>
+        )}
         {sent ? (
-          <p>Check <b>{email}</b> for a sign-in link. Open it on this phone.</p>
+          <p>
+            Check <b>{email}</b> for a sign-in link. Open it on this phone, in the same browser you're using now.
+          </p>
         ) : (
           <form
             onSubmit={async (e) => {
@@ -75,12 +94,30 @@ function HouseholdGate({ user }: { user: User }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
-  const reload = () => db.myHousehold().then(setHousehold).catch((e) => setError(e.message))
+  const reload = () => {
+    setError('')
+    return withTimeout(db.myHousehold(), 15000)
+      .then(setHousehold)
+      .catch((e) => setError(e.message))
+  }
   useEffect(() => {
     reload()
   }, [user.id])
 
-  if (household === undefined) return <div className="center muted">Loading…</div>
+  if (household === undefined)
+    return (
+      <div className="center">
+        {error ? (
+          <div className="card narrow">
+            <p className="error">Couldn't load your household: {error}</p>
+            <button className="primary" onClick={reload}>Try again</button>
+            <button onClick={() => db.signOut()}>Sign out</button>
+          </div>
+        ) : (
+          <div className="muted">Loading your list…</div>
+        )}
+      </div>
+    )
   if (household) return <Main household={household} />
 
   const run = async (fn: () => Promise<void>) => {
